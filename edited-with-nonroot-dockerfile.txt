@@ -1,0 +1,39 @@
+FROM ubuntu:latest
+ENV KEYCLOAK_VERSION 18.0.2
+ENV JDBC_POSTGRES_VERSION 42.3.3
+ENV LAUNCH_JBOSS_IN_BACKGROUND 1
+ENV JBOSS_HOME /opt/jboss
+ENV LANG en_US.UTF-8
+ARG GIT_REPO
+ARG GIT_BRANCH
+ARG KEYCLOAK_DIST=https://github.com/keycloak/keycloak/releases/download/$KEYCLOAK_VERSION/keycloak-legacy-$KEYCLOAK_VERSION.tar.gz
+RUN apt update
+RUN apt-get update -y
+RUN apt-get install -y sudo
+RUN apt-get install -y git gzip openssl curl tar vim
+RUN apt-get install -y openjdk-11-jdk
+RUN apt-get clean all
+RUN adduser nonroot
+RUN usermod -aG sudo nonroot
+RUN echo "nonroot ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+USER nonroot
+RUN sudo mkdir /opt/test
+WORKDIR /opt/test/
+RUN sudo git clone https://github.com/keycloak/keycloak-containers.git
+RUN sudo mkdir -p /opt/jboss/tools
+RUN sudo cp -R /opt/test/keycloak-containers/server/tools/* /opt/jboss/tools
+COPY JDBC_PING.cli /opt/jboss/tools/cli/jgroups/discovery/
+RUN sudo chmod -rwx /opt
+WORKDIR /opt/jboss/tools/
+RUN echo "insecure" >> $HOME/.curlrc
+RUN sudo chmod +rwx  /opt/jboss/tools/build-keycloak.sh
+RUN sudo chmod +rwx /opt/jboss/tools/docker-entrypoint.sh
+RUN sudo chmod +x  /opt/jboss/tools/build-keycloak.sh
+ADD terraform-realm.json /opt/jboss/tools/
+ENV KEYCLOAK_IMPORT /opt/jboss/tools/terraform-realm.json
+USER 1000
+EXPOSE 8080
+EXPOSE 8443
+RUN sudo chmod +rwx /opt/jboss/tools/
+ENTRYPOINT ["/opt/jboss/tools/docker-entrypoint.sh"]
+CMD ["-b", "0.0.0.0"]
